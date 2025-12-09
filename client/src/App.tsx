@@ -135,6 +135,7 @@ function App() {
   // Video call state
   const [inCall, setInCall] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null); // Ref for immediate access
   const [remoteStreams, setRemoteStreams] = useState<{
     [socketId: string]: MediaStream;
   }>({});
@@ -283,9 +284,11 @@ function App() {
       const pc = new RTCPeerConnection(rtcConfig);
       peerConnections.current[otherSocketId] = pc;
 
-      if (localStream) {
-        localStream.getTracks().forEach((track) => {
-          pc.addTrack(track, localStream);
+      // Use ref to get the current stream immediately
+      const stream = localStreamRef.current;
+      if (stream) {
+        stream.getTracks().forEach((track) => {
+          pc.addTrack(track, stream);
         });
       }
 
@@ -321,7 +324,8 @@ function App() {
     // In App.tsx useEffect (client signalling setup)
 
     const onCallPeersList = (peerIds: string[]) => {
-      if (!localStream || !roomId) return;
+      // Use ref for check
+      if (!localStreamRef.current || !roomId) return;
 
       // For every peer already in the room, initiate an offer
       peerIds.forEach(peerId => {
@@ -357,7 +361,7 @@ function App() {
       const pc = createPeerConnection(otherSocketId);
 
       // If I am the broadcaster (I have localStream), I create the offer and send it
-      if (localStream) {
+      if (localStreamRef.current) {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         s.emit('webrtc-offer', { roomId, to: otherSocketId, offer });
@@ -478,6 +482,7 @@ function App() {
         audio: true,
       });
       setLocalStream(stream);
+      localStreamRef.current = stream; // Update ref immediately
       setInCall(true);
       setVideoEnabled(true);
       setAudioEnabled(true);
@@ -507,6 +512,7 @@ function App() {
       localStream.getTracks().forEach((track) => track.stop());
     }
     setLocalStream(null);
+    localStreamRef.current = null; // Clear ref
     setRemoteStreams({});
     setInCall(false);
     setVideoEnabled(true);
