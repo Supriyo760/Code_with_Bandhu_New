@@ -136,16 +136,8 @@ function App() {
 
   // Video call state
   const [inCall, setInCall] = useState(false);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null); // Ref for immediate access
-  const [remoteStreams, setRemoteStreams] = useState<{
-    [socketId: string]: MediaStream;
-  }>({});
   const peerConnections = useRef<{
     [socketId: string]: RTCPeerConnection;
-  }>({});
-  const iceCandidatesQueue = useRef<{
-    [socketId: string]: RTCIceCandidateInit[];
   }>({});
 
   // Media toggles
@@ -289,11 +281,9 @@ function App() {
       const pc = new RTCPeerConnection(rtcConfig);
       peerConnections.current[otherSocketId] = pc;
 
-      // Use ref to get the current stream immediately
-      const stream = localStreamRef.current;
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          pc.addTrack(track, stream);
+      if (localStream) {
+        localStream.getTracks().forEach((track) => {
+          pc.addTrack(track, localStream);
         });
       }
 
@@ -329,21 +319,20 @@ function App() {
     // In App.tsx useEffect (client signalling setup)
 
     const onCallPeersList = (peerIds: string[]) => {
-      // Use ref for check
-      if (!localStreamRef.current || !roomId) return;
+      if (!localStream || !roomId) return;
 
-      // For every peer already in the room, initiate an offer IF my ID is "larger"
+      // For every peer already in the room, initiate an offer
       peerIds.forEach(peerId => {
-        // Deterministic tie-breaker: Only the "larger" ID sends the offer
-        if (s.id > peerId) {
-          if (!peerConnections.current[peerId]) {
-            const pc = createPeerConnection(peerId);
-            pc.createOffer().then((offer) => {
-              pc.setLocalDescription(offer).then(() => {
-                s.emit('webrtc-offer', { roomId, to: peerId, offer });
-              });
+        // Avoid re-creating if they somehow reconnected
+        if (!peerConnections.current[peerId]) {
+          const pc = createPeerConnection(peerId);
+
+          // Since *I* initiated this connection, I send the offer
+          pc.createOffer()
+            .then(offer => pc.setLocalDescription(offer))
+            .then(() => {
+              s.emit('webrtc-offer', { roomId, to: peerId, offer });
             });
-          }
         }
       });
     };
@@ -363,15 +352,16 @@ function App() {
         return;
       }
 
-      // Deterministic tie-breaker: Only the "larger" ID sends the offer
-      if (s.id > otherSocketId) {
-        const pc = createPeerConnection(otherSocketId);
-        if (localStreamRef.current) {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          s.emit('webrtc-offer', { roomId, to: otherSocketId, offer });
-        }
+      const pc = createPeerConnection(otherSocketId);
+
+      // If I am the broadcaster (I have localStream), I create the offer and send it
+      if (localStream) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        s.emit('webrtc-offer', { roomId, to: otherSocketId, offer });
       }
+      // If I am a VIEWER (localStream is null), I just wait for an offer back.
+      // The broadcaster (who has localStream) must send the offer first.
     };
 
 
@@ -380,24 +370,10 @@ function App() {
       offer: RTCSessionDescriptionInit;
     }) => {
       if (!roomId) return;
-
       const pc = createPeerConnection(data.from);
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-
-      // Process queued candidates
-      const queue = iceCandidatesQueue.current[data.from];
-      if (queue) {
-        for (const candidate of queue) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } catch (err) {
-            console.error('Error adding queued ICE candidate', err);
-          }
-        }
-        delete iceCandidatesQueue.current[data.from];
-      }
 
       s.emit('webrtc-answer', {
         roomId,
@@ -412,21 +388,7 @@ function App() {
     }) => {
       const pc = peerConnections.current[data.from];
       if (!pc) return;
-
       await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-
-      // Process queued candidates
-      const queue = iceCandidatesQueue.current[data.from];
-      if (queue) {
-        for (const candidate of queue) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } catch (err) {
-            console.error('Error adding queued ICE candidate', err);
-          }
-        }
-        delete iceCandidatesQueue.current[data.from];
-      }
     };
 
     const onWebrtcIceCandidate = async (data: {
@@ -435,16 +397,6 @@ function App() {
     }) => {
       const pc = peerConnections.current[data.from];
       if (!pc) return;
-
-      // Queue if remote description is not set yet
-      if (!pc.remoteDescription) {
-        if (!iceCandidatesQueue.current[data.from]) {
-          iceCandidatesQueue.current[data.from] = [];
-        }
-        iceCandidatesQueue.current[data.from].push(data.candidate);
-        return;
-      }
-
       try {
         await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
       } catch (err) {
@@ -509,7 +461,6 @@ function App() {
         audio: true,
       });
       setLocalStream(stream);
-      localStreamRef.current = stream; // Update ref immediately
       setInCall(true);
       setVideoEnabled(true);
       setAudioEnabled(true);
@@ -539,7 +490,6 @@ function App() {
       localStream.getTracks().forEach((track) => track.stop());
     }
     setLocalStream(null);
-    localStreamRef.current = null; // Clear ref
     setRemoteStreams({});
     setInCall(false);
     setVideoEnabled(true);
