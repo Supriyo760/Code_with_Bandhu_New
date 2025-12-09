@@ -142,6 +142,9 @@ function App() {
   const peerConnections = useRef<{
     [socketId: string]: RTCPeerConnection;
   }>({});
+  const iceCandidatesQueue = useRef<{
+    [socketId: string]: RTCIceCandidateInit[];
+  }>({});
 
   // Media toggles
   const [videoEnabled, setVideoEnabled] = useState(true);
@@ -389,6 +392,19 @@ function App() {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
+      // Process queued candidates
+      const queue = iceCandidatesQueue.current[data.from];
+      if (queue) {
+        for (const candidate of queue) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (err) {
+            console.error('Error adding queued ICE candidate', err);
+          }
+        }
+        delete iceCandidatesQueue.current[data.from];
+      }
+
       s.emit('webrtc-answer', {
         roomId,
         to: data.from,
@@ -410,6 +426,19 @@ function App() {
       }
 
       await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+
+      // Process queued candidates
+      const queue = iceCandidatesQueue.current[data.from];
+      if (queue) {
+        for (const candidate of queue) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (err) {
+            console.error('Error adding queued ICE candidate', err);
+          }
+        }
+        delete iceCandidatesQueue.current[data.from];
+      }
     };
 
     const onWebrtcIceCandidate = async (data: {
@@ -418,6 +447,16 @@ function App() {
     }) => {
       const pc = peerConnections.current[data.from];
       if (!pc) return;
+
+      // Queue if remote description is not set yet
+      if (!pc.remoteDescription) {
+        if (!iceCandidatesQueue.current[data.from]) {
+          iceCandidatesQueue.current[data.from] = [];
+        }
+        iceCandidatesQueue.current[data.from].push(data.candidate);
+        return;
+      }
+
       try {
         await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
       } catch (err) {
