@@ -363,14 +363,9 @@ function App() {
 
       const pc = createPeerConnection(otherSocketId);
 
-      // If I am the broadcaster (I have localStream), I create the offer and send it
-      if (localStreamRef.current) {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        s.emit('webrtc-offer', { roomId, to: otherSocketId, offer });
-      }
-      // If I am a VIEWER (localStream is null), I just wait for an offer back.
-      // The broadcaster (who has localStream) must send the offer first.
+      // We do NOT create an offer here.
+      // We let the new user (who runs onCallPeersList) send the offer.
+      // We just wait for their offer.
     };
 
 
@@ -380,12 +375,7 @@ function App() {
     }) => {
       if (!roomId) return;
 
-      // If we already have a stable connection, ignore new offers (glare prevention)
-      const existingPc = peerConnections.current[data.from];
-      if (existingPc && existingPc.signalingState !== 'stable') {
-        console.warn('Ignoring offer because we are already negotiating with', data.from);
-        return;
-      }
+      if (!roomId) return;
 
       const pc = createPeerConnection(data.from);
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
@@ -419,11 +409,8 @@ function App() {
       const pc = peerConnections.current[data.from];
       if (!pc) return;
 
-      // Prevent "Called in wrong state: stable" error
-      if (pc.signalingState === 'stable') {
-        console.warn('Connection already stable, ignoring answer from', data.from);
-        return;
-      }
+      const pc = peerConnections.current[data.from];
+      if (!pc) return;
 
       await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
 
