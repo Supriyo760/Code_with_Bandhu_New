@@ -374,14 +374,9 @@ function App() {
 
       const pc = createPeerConnection(otherSocketId);
 
-      // If I am the broadcaster (I have localStream), I create the offer and send it
-      if (localStream) {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        s.emit('webrtc-offer', { roomId, to: otherSocketId, offer });
-      }
-      // If I am a VIEWER (localStream is null), I just wait for an offer back.
-      // The broadcaster (who has localStream) must send the offer first.
+      // We do NOT create an offer here anymore.
+      // We let the new user (who runs onCallPeersList) send the offer.
+      // We just wait for their offer.
     };
 
 
