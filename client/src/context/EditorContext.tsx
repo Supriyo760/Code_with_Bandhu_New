@@ -1,5 +1,6 @@
 // src/context/EditorContext.tsx
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
 
 interface EditorContextType {
   roomId: string;
@@ -21,10 +22,10 @@ const EditorContext = createContext<EditorContextType | undefined>(undefined);
 export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [roomId, setRoomId] = useState('');
   const [code, setCode] = useState('');
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState('');
   const [avatar, setAvatar] = useState(''); // <- NEW
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<any[]>([]);
 
   const addMessage = (message: any) => {
     setMessages((prev) => [...prev, message]);

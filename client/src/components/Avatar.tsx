@@ -3,11 +3,6 @@ import { useMemo } from 'react';
 import { createAvatar } from '@dicebear/core';
 import { lorelei } from '@dicebear/collection';
 
-// src/components/Avatar.tsx
-import { useMemo } from 'react';
-import { createAvatar } from '@dicebear/core';
-import { lorelei } from '@dicebear/collection';
-
 interface AvatarProps {
   username: string;
   size?: number;
@@ -22,7 +17,7 @@ const Avatar = ({ username, size = 64 }: AvatarProps) => {
       backgroundType: ['solid'],
       // optional tweaks for variety
       eyes: ['variant01', 'variant02', 'variant03', 'variant04'],
-      mouth: (['happy01', 'happy02', 'surprised01'] as unknown) as unknown,
+      mouth: ['happy01', 'happy02', 'surprised01'] as any,
       hairAccessoriesProbability: 50,
     }).toDataUri();
   }, [username, size]);
