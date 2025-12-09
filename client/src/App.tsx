@@ -103,6 +103,8 @@ const VideoTile: React.FC<VideoTileProps> = ({
 };
 // ------------------------------------------------
 
+// ------------------------------------------------
+// Force Redeploy: Triggering new build
 function App() {
   const {
     roomId,
@@ -330,18 +332,18 @@ function App() {
       // Use ref for check
       if (!localStreamRef.current || !roomId) return;
 
-      // For every peer already in the room, initiate an offer
+      // For every peer already in the room, initiate an offer IF my ID is "larger"
       peerIds.forEach(peerId => {
-        // Avoid re-creating if they somehow reconnected
-        if (!peerConnections.current[peerId]) {
-          const pc = createPeerConnection(peerId);
-
-          // Since *I* initiated this connection, I send the offer
-          pc.createOffer().then((offer) => {
-            pc.setLocalDescription(offer).then(() => {
-              s.emit('webrtc-offer', { roomId, to: peerId, offer });
+        // Deterministic tie-breaker: Only the "larger" ID sends the offer
+        if (s.id > peerId) {
+          if (!peerConnections.current[peerId]) {
+            const pc = createPeerConnection(peerId);
+            pc.createOffer().then((offer) => {
+              pc.setLocalDescription(offer).then(() => {
+                s.emit('webrtc-offer', { roomId, to: peerId, offer });
+              });
             });
-          });
+          }
         }
       });
     };
@@ -361,11 +363,15 @@ function App() {
         return;
       }
 
-      const pc = createPeerConnection(otherSocketId);
-
-      // We do NOT create an offer here.
-      // We let the new user (who runs onCallPeersList) send the offer.
-      // We just wait for their offer.
+      // Deterministic tie-breaker: Only the "larger" ID sends the offer
+      if (s.id > otherSocketId) {
+        const pc = createPeerConnection(otherSocketId);
+        if (localStreamRef.current) {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          s.emit('webrtc-offer', { roomId, to: otherSocketId, offer });
+        }
+      }
     };
 
 
@@ -373,8 +379,6 @@ function App() {
       from: string;
       offer: RTCSessionDescriptionInit;
     }) => {
-      if (!roomId) return;
-
       if (!roomId) return;
 
       const pc = createPeerConnection(data.from);
@@ -406,9 +410,6 @@ function App() {
       from: string;
       answer: RTCSessionDescriptionInit;
     }) => {
-      const pc = peerConnections.current[data.from];
-      if (!pc) return;
-
       const pc = peerConnections.current[data.from];
       if (!pc) return;
 
