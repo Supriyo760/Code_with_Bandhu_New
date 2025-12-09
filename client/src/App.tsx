@@ -59,27 +59,9 @@ const ALL_LANGUAGES = [
   { value: 'sql', label: 'SQL' },
 ];
 
-// STUN/TURN servers for WebRTC
+// STUN server for WebRTC (for demo / dev)
 const rtcConfig: RTCConfiguration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
-    {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-  ],
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
 
 // ----------- Video Tile Component -------------
@@ -374,9 +356,14 @@ function App() {
 
       const pc = createPeerConnection(otherSocketId);
 
-      // We do NOT create an offer here anymore.
-      // We let the new user (who runs onCallPeersList) send the offer.
-      // We just wait for their offer.
+      // If I am the broadcaster (I have localStream), I create the offer and send it
+      if (localStream) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        s.emit('webrtc-offer', { roomId, to: otherSocketId, offer });
+      }
+      // If I am a VIEWER (localStream is null), I just wait for an offer back.
+      // The broadcaster (who has localStream) must send the offer first.
     };
 
 
@@ -385,14 +372,6 @@ function App() {
       offer: RTCSessionDescriptionInit;
     }) => {
       if (!roomId) return;
-
-      // If we already have a stable connection, ignore new offers (glare prevention)
-      const existingPc = peerConnections.current[data.from];
-      if (existingPc && existingPc.signalingState !== 'stable') {
-        console.warn('Ignoring offer because we are already negotiating with', data.from);
-        return;
-      }
-
       const pc = createPeerConnection(data.from);
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
       const answer = await pc.createAnswer();
@@ -411,13 +390,6 @@ function App() {
     }) => {
       const pc = peerConnections.current[data.from];
       if (!pc) return;
-
-      // Prevent "Called in wrong state: stable" error
-      if (pc.signalingState === 'stable') {
-        console.warn('Connection already stable, ignoring answer from', data.from);
-        return;
-      }
-
       await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
     };
 
