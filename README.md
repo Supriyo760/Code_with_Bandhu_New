@@ -8,10 +8,10 @@ Ever tried explaining your code to someone over a call while frantically scrolli
 
 ## [Try Live Demo](https://code-with-bandhu-new.vercel.app)
 
-### Demo Video
-https://github.com/user-attachments/assets/your-video-id-here
-
-*Replace the video link above with your actual demo video (upload to GitHub or use a YouTube embed)*
+## Screenshots
+<img width="1918" height="858" alt="Screenshot 2025-12-10 150600" src="https://github.com/user-attachments/assets/c3dad814-1750-4ca0-a60e-9e6bef4b84e9" />
+<img width="1918" height="863" alt="Screenshot 2025-12-10 151119" src="https://github.com/user-attachments/assets/4028c7ca-2b08-4b61-8496-2fb8d006de4f" />
+<img width="1917" height="597" alt="Screenshot 2025-12-10 151333" src="https://github.com/user-attachments/assets/4077241d-9987-4a11-8c5d-0a6de3dfee9e" />
 
 </div>
 
@@ -157,10 +157,6 @@ And just like that, you're coding together!
 - **Chat:** Open the chat panel to send messages
 - **Language:** Switch between 40+ programming languages with the dropdown
 
-## Demo & Screenshots
-
-*(Coming soon! We'll add some beautiful screenshots and maybe even a demo GIF here)*
-
 ## Troubleshooting
 
 **"Not connected to server" error?**
@@ -243,3 +239,4 @@ Made with love and lots of coffee by [Supriyo](https://github.com/Supriyo760)
 [Back to Top](#code-with-bandhu)
 
 </div>
+
