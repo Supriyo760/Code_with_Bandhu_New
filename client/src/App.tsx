@@ -332,11 +332,11 @@ function App() {
           const pc = createPeerConnection(peerId);
 
           // Since *I* initiated this connection, I send the offer
-          pc.createOffer()
-            .then(offer => pc.setLocalDescription(offer))
-            .then(() => {
+          pc.createOffer().then((offer) => {
+            pc.setLocalDescription(offer).then(() => {
               s.emit('webrtc-offer', { roomId, to: peerId, offer });
             });
+          });
         }
       });
     };
