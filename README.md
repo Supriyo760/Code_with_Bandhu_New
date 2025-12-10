@@ -226,7 +226,7 @@ This project is open-source and available under the [MIT License](LICENSE). Feel
 Found a bug? Have a feature request? Just want to say hi?
 - [Open an issue](https://github.com/Supriyo760/Code_With_Bandhu/issues)
 - Start a [discussion](https://github.com/Supriyo760/Code_With_Bandhu/discussions)
-- Email: [your-email@example.com](mailto:your-email@example.com)
+- Email: [your-email@example.com](mailto:supriyochowdhury760@gmail.com)
 
 ---
 
@@ -234,9 +234,10 @@ Found a bug? Have a feature request? Just want to say hi?
 
 Made with love and lots of coffee by [Supriyo](https://github.com/Supriyo760)
 
-**If this project helped you, consider giving it a star – it really makes our day!**
+**If this project helped you, consider giving it a star**
 
 [Back to Top](#code-with-bandhu)
 
 </div>
+
 
