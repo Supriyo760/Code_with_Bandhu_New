@@ -136,6 +136,10 @@ function App() {
 
   // Video call state
   const [inCall, setInCall] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<{
+    [socketId: string]: MediaStream;
+  }>({});
   const peerConnections = useRef<{
     [socketId: string]: RTCPeerConnection;
   }>({});
