@@ -74,256 +74,237 @@ io.on('connection', (socket: Socket) => {
       // 👇 Persist in roomState
       const prev = roomState.get(roomId) || { language, output, stdin: '' };
       prev.language = language;
-      prev.output = output;
-      roomState.set(roomId, prev);
-
-    }
-  );
-
-  socket.on('get-call-peers', (roomId: string) => {
-    const callRoom = `${roomId}-call`;
-    const peers = io.sockets.adapter.rooms.get(callRoom);
-    if (peers) {
-      // Send list of existing peers to the new caller
-      socket.emit('call-peers-list', Array.from(peers).filter(id => id !== socket.id));
-    }
-  });
-
-  // CREATE ROOM — save to DB first, then join in-memory room
-  socket.on(
-    'create-room',
-    async ({
       roomName,
-      userName,
-      avatar,
-    }: {
-      roomName: string;
-      userName: string;
-      avatar?: string;
-    }) => {
-      try {
-        const newRoomId = Math.random().toString(36).substring(2, 10).toUpperCase();
-
-        await RoomModel.create({
-          roomId: newRoomId,
-          name: roomName,
-          createdBy: userName,
-        });
-
-        // 👇 ADD THIS
-        roomState.set(newRoomId, {
-          language: 'javascript', // default
-          output: '',             // no output yet
-          stdin: '',              // no input yet
-        });
-
-        socket.join(newRoomId);
-        await socketManager.joinRoom(newRoomId, socket, userName, avatar);
-
-        const room = socketManager.getRoom(newRoomId);
-        const users = room
-          ? Array.from(room.users.values()).map((u: any) => ({
-            socketId: u.socketId,
-            userName: u.userName,
-            joinedAt: u.joinedAt,
-            avatar: u.avatar,
-          }))
-          : [];
-
-        socket.emit('room-created', { roomId: newRoomId, users });
-        console.log(`✅ Room created and saved to DB: ${newRoomId}`);
-      } catch (err) {
-        console.error(
-          `❌ Failed to create room: ${err instanceof Error ? err.message : String(err)}`
-        );
-        socket.emit('join-error', 'Failed to create room');
-      }
-    }
-  );
-
-  // JOIN ROOM — check existence (in memory or DB), then join once
-  socket.on(
-    'join-room',
-    async ({
-      roomId,
-      userName,
-      avatar,
-    }: {
-      roomId: string;
-      userName: string;
-      avatar?: string;
-    }) => {
-      const rid = roomId.toUpperCase();
-      console.log(`➡️  ${userName} is trying to join room ${rid}`);
-
-      const existsInMemory = socketManager.getRoom(rid);
-      const existsInDb =
-        existsInMemory ? true : !!(await RoomModel.findOne({ roomId: rid }));
-
-      if (!existsInDb) {
-        console.log(`❌ Room not found: ${rid}`);
-        socket.emit('join-error', 'Room not found!');
-        return;
-      }
-
-      socket.join(rid);
-      await socketManager.joinRoom(rid, socket, userName, avatar);
-
-      // 👇 NEW: send current language & last output to this socket
-      const state = roomState.get(rid);
-      if (state) {
-        // Current language
-        socket.emit('language-update', state.language);
-
-        // Last output, if any
-        if (state.output) {
-          socket.emit('run-output', {
-            output: state.output,
-            language: state.language,
-          });
-        }
-
-        // Current input
-        if (state.stdin) {
-          socket.emit('input-update', state.stdin);
-        }
-      }
-
-      socket.emit('join-success');
-      console.log(`✅ ${userName} joined room ${rid}`);
-    }
-  );
-
-  // CODE CHANGE
-  socket.on('code-change', (data: { roomId: string; code: string; userId: string }) => {
-    const { roomId, code, userId } = data;
-    if (!roomId) return;
-    socketManager.updateCode(roomId, code, userId, socket.id);
-  });
-
-  // LANGUAGE CHANGE
-  socket.on('language-change', (data: { roomId: string; language: string }) => {
-    const { roomId, language } = data;
-    if (!roomId || !language) return;
-    socketManager.updateLanguage(roomId, socket.id, language);
-    io.to(roomId).emit('language-update', language);
-
-    // 👇 Persist in roomState
-    const prev = roomState.get(roomId) || { language, output: '', stdin: '' };
-    prev.language = language;
-    roomState.set(roomId, prev);
-
-  });
-
-  // INPUT CHANGE
-  socket.on('input-change', (data: { roomId: string; value: string }) => {
-    const { roomId, value } = data;
-    if (!roomId) return;
-
-    // Broadcast to others
-    socket.to(roomId).emit('input-update', value);
-
-    // Persist
-    const prev = roomState.get(roomId) || { language: 'javascript', output: '', stdin: '' };
-    prev.stdin = value;
-    roomState.set(roomId, prev);
-  });
-
-  // CHAT MESSAGE
-  socket.on(
-    'chat-message',
-    (data: { roomId: string; message: string; userName: string; avatar?: string }) => {
-      const { roomId, message, userName, avatar } = data;
-      if (!roomId || !message || !userName) return;
-
-      socketManager.broadcastMessage(roomId, {
-        id: uuidv4(),
-        message,
         userName,
-        timestamp: new Date(),
-        userId: socket.id,
         avatar,
+    }: {
+    roomName: string;
+    userName: string;
+    avatar?: string;
+  }) => {
+    try {
+      const newRoomId = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+      await RoomModel.create({
+        roomId: newRoomId,
+        name: roomName,
+        createdBy: userName,
       });
+
+      // 👇 ADD THIS
+      roomState.set(newRoomId, {
+        language: 'javascript', // default
+        output: '',             // no output yet
+        stdin: '',              // no input yet
+      });
+
+      socket.join(newRoomId);
+      await socketManager.joinRoom(newRoomId, socket, userName, avatar);
+
+      const room = socketManager.getRoom(newRoomId);
+      const users = room
+        ? Array.from(room.users.values()).map((u: any) => ({
+          socketId: u.socketId,
+          userName: u.userName,
+          joinedAt: u.joinedAt,
+          avatar: u.avatar,
+        }))
+        : [];
+
+      socket.emit('room-created', { roomId: newRoomId, users });
+      console.log(`✅ Room created and saved to DB: ${newRoomId}`);
+    } catch (err) {
+      console.error(
+        `❌ Failed to create room: ${err instanceof Error ? err.message : String(err)}`
+      );
+      socket.emit('join-error', 'Failed to create room');
     }
+  }
   );
 
-  // CURSOR POSITION (optional)
-  socket.on(
-    'cursor-position',
-    (data: { roomId: string; position: any; userName: string }) => {
-      const { roomId, position, userName } = data;
-      socket.on(
-        'webrtc-offer',
-        (data: { roomId: string; to: string; offer: RTCSessionDescriptionInitLike }) => {
-          socket.to(data.to).emit('webrtc-offer', { from: socket.id, offer: data.offer });
-        }
-      );
+// JOIN ROOM — check existence (in memory or DB), then join once
+socket.on(
+  'join-room',
+  async ({
+    roomId,
+    userName,
+    avatar,
+  }: {
+    roomId: string;
+    userName: string;
+    avatar?: string;
+  }) => {
+    const rid = roomId.toUpperCase();
+    console.log(`➡️  ${userName} is trying to join room ${rid}`);
 
-      socket.on(
-        'webrtc-answer',
-        (data: { roomId: string; to: string; answer: RTCSessionDescriptionInitLike }) => {
-          socket.to(data.to).emit('webrtc-answer', { from: socket.id, answer: data.answer });
-        }
-      );
+    const existsInMemory = socketManager.getRoom(rid);
+    const existsInDb =
+      existsInMemory ? true : !!(await RoomModel.findOne({ roomId: rid }));
 
-      socket.on(
-        'webrtc-ice-candidate',
-        (data: { roomId: string; to: string; candidate: RTCIceCandidateInitLike }) => {
-          socket.to(data.to).emit('webrtc-ice-candidate', {
-            from: socket.id,
-            candidate: data.candidate,
-          });
-        }
-      );
+    if (!existsInDb) {
+      console.log(`❌ Room not found: ${rid}`);
+      socket.emit('join-error', 'Room not found!');
+      return;
+    }
 
-      socket.on('leave-call', (roomId: string) => {
-        socket.to(roomId).emit('user-left-call', socket.id);
+    socket.join(rid);
+    await socketManager.joinRoom(rid, socket, userName, avatar);
 
-      });
+    // 👇 NEW: send current language & last output to this socket
+    const state = roomState.get(rid);
+    if (state) {
+      // Current language
+      socket.emit('language-update', state.language);
 
-      // DISCONNECT
-      socket.on('disconnect', () => {
-        console.log(`❌ Client disconnected: ${socket.id}`);
-        const rooms = socketManager.getAllRooms();
-        rooms.forEach((room: any, roomId: string) => {
-          if (room.users.has(socket.id)) {
-            socketManager.leaveRoom(roomId, socket.id);
-          }
+      // Last output, if any
+      if (state.output) {
+        socket.emit('run-output', {
+          output: state.output,
+          language: state.language,
         });
-      });
+      }
+
+      // Current input
+      if (state.stdin) {
+        socket.emit('input-update', state.stdin);
+      }
+    }
+
+    socket.emit('join-success');
+    console.log(`✅ ${userName} joined room ${rid}`);
+  }
+);
+
+// CODE CHANGE
+socket.on('code-change', (data: { roomId: string; code: string; userId: string }) => {
+  const { roomId, code, userId } = data;
+  if (!roomId) return;
+  socketManager.updateCode(roomId, code, userId, socket.id);
+});
+
+// LANGUAGE CHANGE
+socket.on('language-change', (data: { roomId: string; language: string }) => {
+  const { roomId, language } = data;
+  if (!roomId || !language) return;
+  socketManager.updateLanguage(roomId, socket.id, language);
+  io.to(roomId).emit('language-update', language);
+
+  // 👇 Persist in roomState
+  const prev = roomState.get(roomId) || { language, output: '', stdin: '' };
+  prev.language = language;
+  roomState.set(roomId, prev);
+
+});
+
+// INPUT CHANGE
+socket.on('input-change', (data: { roomId: string; value: string }) => {
+  const { roomId, value } = data;
+  if (!roomId) return;
+
+  // Broadcast to others
+  socket.to(roomId).emit('input-update', value);
+
+  // Persist
+  const prev = roomState.get(roomId) || { language: 'javascript', output: '', stdin: '' };
+  prev.stdin = value;
+  roomState.set(roomId, prev);
+});
+
+// CHAT MESSAGE
+socket.on(
+  'chat-message',
+  (data: { roomId: string; message: string; userName: string; avatar?: string }) => {
+    const { roomId, message, userName, avatar } = data;
+    if (!roomId || !message || !userName) return;
+
+    socketManager.broadcastMessage(roomId, {
+      id: uuidv4(),
+      message,
+      userName,
+      timestamp: new Date(),
+      userId: socket.id,
+      avatar,
+    });
+  }
+);
+
+// CURSOR POSITION (optional)
+socket.on(
+  'cursor-position',
+  (data: { roomId: string; position: any; userName: string }) => {
+    const { roomId, position, userName } = data;
+    socket.on(
+      'webrtc-offer',
+      (data: { roomId: string; to: string; offer: RTCSessionDescriptionInitLike }) => {
+        socket.to(data.to).emit('webrtc-offer', { from: socket.id, offer: data.offer });
+      }
+    );
+
+    socket.on(
+      'webrtc-answer',
+      (data: { roomId: string; to: string; answer: RTCSessionDescriptionInitLike }) => {
+        socket.to(data.to).emit('webrtc-answer', { from: socket.id, answer: data.answer });
+      }
+    );
+
+    socket.on(
+      'webrtc-ice-candidate',
+      (data: { roomId: string; to: string; candidate: RTCIceCandidateInitLike }) => {
+        socket.to(data.to).emit('webrtc-ice-candidate', {
+          from: socket.id,
+          candidate: data.candidate,
+        });
+      }
+    );
+
+    socket.on('leave-call', (roomId: string) => {
+      socket.to(roomId).emit('user-left-call', socket.id);
+
     });
 
-  // ---------------- API Routes ----------------
-  app.use('/api/rooms', roomRoutes);
-  app.use('/api/snippets', snippetRoutes);
-  app.use('/api/run', runRoutes);
-
-  // Debug endpoint (avoid clashing with /api/rooms router)
-  app.get('/api/debug/rooms', (req: Request, res: Response) => {
-    const rooms = Array.from(socketManager.getAllRooms().keys());
-    res.json({ totalRooms: rooms.length, rooms });
+    // DISCONNECT
+    socket.on('disconnect', () => {
+      console.log(`❌ Client disconnected: ${socket.id}`);
+      const rooms = socketManager.getAllRooms();
+      rooms.forEach((room: any, roomId: string) => {
+        if (room.users.has(socket.id)) {
+          socketManager.leaveRoom(roomId, socket.id);
+        }
+      });
+    });
   });
 
-  // Health check
-  app.get('/health', (req: Request, res: Response) => {
-    res.json({ status: 'Server is running' });
-  });
+// ---------------- API Routes ----------------
+app.use('/api/rooms', roomRoutes);
+app.use('/api/snippets', snippetRoutes);
+app.use('/api/run', runRoutes);
 
-  // 404
-  app.use((req: Request, res: Response) => {
-    res.status(404).json({ success: false, error: 'Route not found' });
-  });
+// Debug endpoint (avoid clashing with /api/rooms router)
+app.get('/api/debug/rooms', (req: Request, res: Response) => {
+  const rooms = Array.from(socketManager.getAllRooms().keys());
+  res.json({ totalRooms: rooms.length, rooms });
+});
 
-  // Error handler
-  app.use(errorHandler);
+// Health check
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ status: 'Server is running' });
+});
 
-  const PORT = process.env.PORT || 5000;
+// 404
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ success: false, error: 'Route not found' });
+});
 
-  const startServer = async (): Promise<void> => {
-    try {
-      await connectDB();
-      server.listen(PORT, () => {
-        console.log(`
+// Error handler
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 5000;
+
+const startServer = async (): Promise<void> => {
+  try {
+    await connectDB();
+    server.listen(PORT, () => {
+      console.log(`
 ╔════════════════════════════════════════════╗
 ║     🚀 Server Running Successfully 🚀      ║
 ║                                            ║
@@ -331,13 +312,13 @@ io.on('connection', (socket: Socket) => {
 ║  🔗 WebSocket: ws://localhost:${PORT}         ║
 ╚════════════════════════════════════════════╝
       `);
-      });
-    } catch (err) {
-      console.error('Failed to start server:', err);
-      process.exit(1);
-    }
-  };
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+};
 
-  startServer();
+startServer();
 
-  export { io, socketManager };
+export { io, socketManager };
