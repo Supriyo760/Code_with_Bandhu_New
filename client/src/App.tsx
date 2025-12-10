@@ -861,9 +861,6 @@ function App() {
             <a href="#" className="hover:text-blue-500 transition-colors">Terms of Service</a>
             <a href="#" className="hover:text-blue-500 transition-colors">Contact Support</a>
           </div>
-          <div className="text-center text-gray-600 text-xs mt-4">
-            © 2024 Code With Bandhu
-          </div>
         </motion.div>
       </div>
     );
