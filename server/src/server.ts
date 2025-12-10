@@ -252,90 +252,78 @@ io.on('connection', (socket: Socket) => {
     'cursor-position',
     (data: { roomId: string; position: any; userName: string }) => {
       const { roomId, position, userName } = data;
-      if (!roomId || !position) return;
-      socketManager.broadcastCursorPosition(roomId, socket.id, userName, position);
-    }
-  );
+      socket.on(
+        'webrtc-offer',
+        (data: { roomId: string; to: string; offer: RTCSessionDescriptionInitLike }) => {
+          socket.to(data.to).emit('webrtc-offer', { from: socket.id, offer: data.offer });
+        }
+      );
 
-  // --- WebRTC video call signalling (server only relays JSON) ---
-  socket.on('join-call', (roomId: string) => {
-    const callRoom = `${roomId}-call`;
-    socket.join(callRoom);
-    socket.to(callRoom).emit('user-joined-call', socket.id);
-  });
+      socket.on(
+        'webrtc-answer',
+        (data: { roomId: string; to: string; answer: RTCSessionDescriptionInitLike }) => {
+          socket.to(data.to).emit('webrtc-answer', { from: socket.id, answer: data.answer });
+        }
+      );
 
-  socket.on(
-    'webrtc-offer',
-    (data: { roomId: string; to: string; offer: RTCSessionDescriptionInitLike }) => {
-      socket.to(data.to).emit('webrtc-offer', { from: socket.id, offer: data.offer });
-    }
-  );
+      socket.on(
+        'webrtc-ice-candidate',
+        (data: { roomId: string; to: string; candidate: RTCIceCandidateInitLike }) => {
+          socket.to(data.to).emit('webrtc-ice-candidate', {
+            from: socket.id,
+            candidate: data.candidate,
+          });
+        }
+      );
 
-  socket.on(
-    'webrtc-answer',
-    (data: { roomId: string; to: string; answer: RTCSessionDescriptionInitLike }) => {
-      socket.to(data.to).emit('webrtc-answer', { from: socket.id, answer: data.answer });
-    }
-  );
+      socket.on('leave-call', (roomId: string) => {
+        socket.to(roomId).emit('user-left-call', socket.id);
 
-  socket.on(
-    'webrtc-ice-candidate',
-    (data: { roomId: string; to: string; candidate: RTCIceCandidateInitLike }) => {
-      socket.to(data.to).emit('webrtc-ice-candidate', {
-        from: socket.id,
-        candidate: data.candidate,
       });
-    }
-  );
 
-  socket.on('leave-call', (roomId: string) => {
-    socket.to(roomId).emit('user-left-call', socket.id);
-
-  });
-
-  // DISCONNECT
-  socket.on('disconnect', () => {
-    console.log(`❌ Client disconnected: ${socket.id}`);
-    const rooms = socketManager.getAllRooms();
-    rooms.forEach((room: any, roomId: string) => {
-      if (room.users.has(socket.id)) {
-        socketManager.leaveRoom(roomId, socket.id);
-      }
+      // DISCONNECT
+      socket.on('disconnect', () => {
+        console.log(`❌ Client disconnected: ${socket.id}`);
+        const rooms = socketManager.getAllRooms();
+        rooms.forEach((room: any, roomId: string) => {
+          if (room.users.has(socket.id)) {
+            socketManager.leaveRoom(roomId, socket.id);
+          }
+        });
+      });
     });
+
+  // ---------------- API Routes ----------------
+  app.use('/api/rooms', roomRoutes);
+  app.use('/api/snippets', snippetRoutes);
+  app.use('/api/run', runRoutes);
+
+  // Debug endpoint (avoid clashing with /api/rooms router)
+  app.get('/api/debug/rooms', (req: Request, res: Response) => {
+    const rooms = Array.from(socketManager.getAllRooms().keys());
+    res.json({ totalRooms: rooms.length, rooms });
   });
-});
 
-// ---------------- API Routes ----------------
-app.use('/api/rooms', roomRoutes);
-app.use('/api/snippets', snippetRoutes);
-app.use('/api/run', runRoutes);
+  // Health check
+  app.get('/health', (req: Request, res: Response) => {
+    res.json({ status: 'Server is running' });
+  });
 
-// Debug endpoint (avoid clashing with /api/rooms router)
-app.get('/api/debug/rooms', (req: Request, res: Response) => {
-  const rooms = Array.from(socketManager.getAllRooms().keys());
-  res.json({ totalRooms: rooms.length, rooms });
-});
+  // 404
+  app.use((req: Request, res: Response) => {
+    res.status(404).json({ success: false, error: 'Route not found' });
+  });
 
-// Health check
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'Server is running' });
-});
+  // Error handler
+  app.use(errorHandler);
 
-// 404
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ success: false, error: 'Route not found' });
-});
+  const PORT = process.env.PORT || 5000;
 
-// Error handler
-app.use(errorHandler);
-
-const PORT = process.env.PORT || 5000;
-
-const startServer = async (): Promise<void> => {
-  try {
-    await connectDB();
-    server.listen(PORT, () => {
-      console.log(`
+  const startServer = async (): Promise<void> => {
+    try {
+      await connectDB();
+      server.listen(PORT, () => {
+        console.log(`
 ╔════════════════════════════════════════════╗
 ║     🚀 Server Running Successfully 🚀      ║
 ║                                            ║
@@ -343,13 +331,13 @@ const startServer = async (): Promise<void> => {
 ║  🔗 WebSocket: ws://localhost:${PORT}         ║
 ╚════════════════════════════════════════════╝
       `);
-    });
-  } catch (err) {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-  }
-};
+      });
+    } catch (err) {
+      console.error('Failed to start server:', err);
+      process.exit(1);
+    }
+  };
 
-startServer();
+  startServer();
 
-export { io, socketManager };
+  export { io, socketManager };
