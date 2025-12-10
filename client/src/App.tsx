@@ -374,6 +374,13 @@ function App() {
       offer: RTCSessionDescriptionInit;
     }) => {
       if (!roomId) return;
+
+      // Glare protection: If we already have a stable connection, ignore this new offer
+      if (peerConnections.current[data.from] && peerConnections.current[data.from].signalingState === 'stable') {
+        console.warn('Ignoring offer because connection is already stable');
+        return;
+      }
+
       const pc = createPeerConnection(data.from);
       await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
       const answer = await pc.createAnswer();
@@ -392,6 +399,13 @@ function App() {
     }) => {
       const pc = peerConnections.current[data.from];
       if (!pc) return;
+
+      // Safety check: If already stable, don't set remote description again
+      if (pc.signalingState === 'stable') {
+        console.warn('Ignoring answer because connection is already stable');
+        return;
+      }
+
       await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
     };
 
